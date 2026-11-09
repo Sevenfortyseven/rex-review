@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"rex-review/internal/install"
 	"rex-review/internal/review"
 	"rex-review/internal/rex"
 	"rex-review/internal/ui"
@@ -92,6 +93,13 @@ func run() error {
 }
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "install" || os.Args[1] == "uninstall") {
+		if err := configure(os.Args[1], os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "Rex Review:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "theme" {
 		theme, err := rex.CurrentTerminalTheme()
 		if err != nil {
@@ -112,4 +120,43 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+func configure(action string, args []string) error {
+	defaultPath, err := install.DefaultConfig()
+	if err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet(action, flag.ContinueOnError)
+	path := flags.String("config", defaultPath, "Rex init.lua path")
+	server := flags.String("server", "", "optional Rex server address")
+	if err = flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected arguments: %v", flags.Args())
+	}
+	client := rex.New()
+	client.Server = *server
+	if action == "install" {
+		executable, e := os.Executable()
+		if e != nil {
+			return e
+		}
+		if err = install.Install(*path, *server, executable, client); err != nil {
+			return err
+		}
+	} else {
+		if err = install.Uninstall(*path, client); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("Rex Review %sed in %s\n", action, *path)
+	if _, err = client.Run("", "config", "reload"); err != nil {
+		fmt.Fprintln(os.Stderr, "Configuration saved. Reload Rex when it is available: rex config reload")
+	}
+	return nil
 }

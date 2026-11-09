@@ -1,4 +1,6 @@
-local plugin = rexd.plugin
+-- Loaded directly by Rex's init.lua; no plugin manager is required.
+return function(options)
+local binary = assert(options.bin, "Rex Review needs the installed binary path")
 
 rex.action{
   name = "rex_review",
@@ -33,12 +35,12 @@ rex.action{
     -- Read local client preferences at each open, so the selected light/dark
     -- theme is applied before the review program renders its first frame.
     local terminal_options = { command = {
-      plugin.dir .. "/bin/rex-review", "--session", ctx.session_id,
+      binary, "--session", ctx.session_id,
       "--window", origin.window_id, "--from", ctx.block_id,
-      "--server", (plugin.options or {}).server or "",
+      "--server", options.server or "",
       "--repo", args.repo or "",
     } }
-    local appearance = rex.exec({ plugin.dir .. "/bin/rex-review", "theme" }, { timeout = 3 })
+    local appearance = rex.exec({ binary, "theme" }, { timeout = 3 })
     if appearance and appearance.ok then
       local theme = rex.json.decode(appearance.stdout)
       if theme and theme.foreground and theme.background then terminal_options.theme = theme end
@@ -60,3 +62,4 @@ rex.action{
 }
 
 rex.bind("cmd+shift+r", "rex_review")
+end

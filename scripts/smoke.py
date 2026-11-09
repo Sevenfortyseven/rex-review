@@ -20,10 +20,9 @@ def main():
         tmp = Path(folder)
         endpoint = "unix://" + str(tmp / "server.sock")
         config = tmp / "init.lua"
-        config.write_text(
-            'rexd = {plugin = {dir = %s, options = {server = %s}}}\ndofile(%s)\n'
-            % (json.dumps(str(ROOT)), json.dumps(endpoint), json.dumps(str(ROOT / "rex/config.lua")))
-        )
+        original_config = "-- Disposable Rex Review test configuration\n"
+        config.write_text(original_config)
+        subprocess.run([str(ROOT / "bin/rex-review"), "install", "--config", str(config), "--server", endpoint], check=True)
         # A raw-input recorder named codex exercises process detection and literal paste.
         # It cannot execute received input, and logs only test-generated comments.
         received = tmp / "received.txt"
@@ -95,7 +94,7 @@ int main(int argc, char **argv) {
                         keys(review, "enter")
                         wait_screen(review, "not an accessible Git working tree")
                         keys(review, "ctrl+u")
-                        call("api", "call", "block.event", json.dumps({"session_id": session, "block_id": review, "event": {"type": "paste", "payload": {"text": str(repo)[:-2]}}}))
+                        call("api", "call", "block.event", json.dumps({"session_id": session, "block_id": review, "event": {"type": "paste", "payload": {"text": str(repo)[:-1]}}}))
                         keys(review, "tab")
                         wait_screen(review, "Folder completed")
                         keys(review, "enter")
@@ -161,7 +160,10 @@ int main(int argc, char **argv) {
                     break
                 assert time.monotonic() < deadline, "review did not close after send"
                 time.sleep(.05)
-            print("PASS: Rex theme palette, non-Git launch recovery, Tab completion, remembered project, draft recovery, stale refusal, single delivery")
+            subprocess.run([str(ROOT / "bin/rex-review"), "uninstall", "--config", str(config), "--server", endpoint], check=True)
+            assert config.read_text() == original_config, "uninstall changed the original Rex config"
+            assert not (tmp / "rex-review/rex-review").exists(), "uninstall left its binary behind"
+            print("PASS: standalone install/uninstall, Rex theme palette, non-Git recovery, Tab completion, draft recovery, stale refusal, single delivery")
         finally:
             try:
                 call("server", "stop")

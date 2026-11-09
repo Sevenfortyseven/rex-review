@@ -1,6 +1,6 @@
 # Rex Review
 
-A [rexd](https://github.com/tornikegomareli/rexd) plugin for reviewing uncommitted Git changes in a floating Rex pane. Select lines, write comments, and send a review to the agent pane you opened it from.
+A standalone tool for reviewing uncommitted Git changes in a floating [Rex](https://www.superlogical.com/rex) pane. Select lines, write comments, and send a review to the agent pane you opened it from. No plugin manager or background daemon is required.
 
 The interface is a Go/Bubble Tea program in Rex's standard terminal block. Lua opens Rex's floating layer and preserves the originating session, tab, and pane IDs. No app patching or private block SDK is used.
 
@@ -10,29 +10,31 @@ On a local Mac, the launcher reads Rex's selected light/dark built-in theme and 
 
 ## Install
 
-Requires [Rex](https://www.superlogical.com/rex) API revision 11+, [rexd](https://github.com/tornikegomareli/rexd), Go 1.24.2+, and Git. The floating UI has been tested on macOS.
+Requires Rex API revision 11+, Go 1.24.2+ to build, and Git. The floating UI and installer have been tested on macOS.
 
-Install the build tools and plugin manager with Homebrew if needed:
+Install Go with Homebrew if needed:
 
 ```sh
-brew install go tornikegomareli/tap/rexd
+brew install go
 ```
 
 Install from GitHub:
 
 ```sh
-rexd setup --no-service
-rexd install Sevenfortyseven/rex-review
+git clone https://github.com/Sevenfortyseven/rex-review.git
+cd rex-review
+go run ./cmd/rex-review install
 ```
 
-For local development, install from the source directory instead:
+If you already have the source directory, run the same install command from there:
 
 ```sh
-rexd setup --no-service
-rexd install /absolute/path/to/rex-review --link
+go run ./cmd/rex-review install
 ```
 
-This plugin has no background event scripts, so it does not require a rexd daemon. An existing rexd setup also works. The default shortcut is **Cmd+Shift+R**; the palette action is **Rex Review: Git Changes**. Open it from a supported agent pane. Press the shortcut again to close it; saved drafts survive.
+The installer copies the binary and Lua action to `~/.config/rex/rex-review/`, adds a marked block to `~/.config/rex/init.lua`, checks the configuration with Rex, and reloads it. Existing config lines are preserved, and a backup is saved as `init.lua.rex-review.bak` on the first install. Running the installer again updates the installation without adding duplicate blocks. A custom `REX_CONFIG` or `XDG_CONFIG_HOME` is respected; `--config /path/to/init.lua` overrides the destination. If Rex is not running, the files are still installed; open Rex or run `rex config reload` later.
+
+The default shortcut is **Cmd+Shift+R**; the palette action is **Rex Review: Git Changes**. Open it from a supported agent pane. Press the shortcut again to close it; saved drafts survive.
 
 If the agent's reported folder is not a Git working tree, the viewer asks for the project folder instead of exiting. Paste the full path and press Enter. This also handles agents whose in-app `/cd` does not update their OS working directory. The chosen folder is remembered for that running agent process. Press `p` in the viewer to choose a different project; existing drafts stay with their original repository.
 
@@ -44,7 +46,11 @@ Override the shortcut in `~/.config/rex/init.lua`:
 rex.bind("cmd+shift+r", "rex_review")
 ```
 
-For a nondefault Rex server, set `rexd set aleksandre.rex-review server=unix:///path/to/server.sock`. The default uses Rex's normal server routing.
+For a nondefault Rex server, install with `go run ./cmd/rex-review install --server unix:///path/to/server.sock`. The default uses Rex's normal server routing.
+
+### Migrating an older installation
+
+If you installed a previous version through rexd, first remove that registration with `rexd remove aleksandre.rex-review`, then run the standalone install command above. If no other plugins use rexd, `rexd teardown` removes its config loader and daemon. Your saved reviews are kept.
 
 ## Use
 
@@ -93,12 +99,12 @@ Comments include the repository, relative file path, line range, diff scope, sel
 
 ## Troubleshooting
 
-- **The shortcut does nothing:** run `rexd list` and check that `aleksandre.rex-review` is installed, then run `rex config reload`. You can also search the Rex command palette for **Rex Review: Git Changes**. A later binding in your own config takes precedence over the plugin's shortcut.
+- **The shortcut does nothing:** check that `init.lua` contains the marked `rex-review` block and run `rex config reload`. You can also search the Rex command palette for **Rex Review: Git Changes**. A later binding in your own config takes precedence over the installed shortcut.
 - **The viewer asks for an agent pane:** open it from the pane running the agent, with that agent working inside a Git repository. A plain shell or an unrecognized agent wrapper cannot receive reviews.
 - **The agent's project changed but the viewer shows another repository:** press `p` and select the current project's full path. A chosen folder overrides automatic detection for that agent process. Repository selection does not change which agent receives the comments.
 - **A comment is stale:** press `r`, then Shift+C to inspect the saved comment. Delete that comment and re-add it against the current diff. Editing its text alone does not update its line snapshot.
 - **Delivery is uncertain:** inspect the originating agent's input before doing anything else. If the review is pasted but unsent, submit it there. Only clear the marker with `x` in the comments view once you have checked whether it was delivered.
-- **Go or Rex is not found during installation:** make sure both commands are on the shell's `PATH` before running `rexd install`. Rex exposes its executable directory as `REX_BIN_DIR` inside its terminals.
+- **Go or Rex is not found during installation:** make sure both commands are on the shell's `PATH` before installing. Rex exposes its executable directory as `REX_BIN_DIR` inside its terminals. On macOS the installer also checks the standard Rex Beta app location.
 
 ## Develop
 
@@ -109,19 +115,19 @@ go mod download
 go test ./...
 go vet ./...
 go build -o bin/rex-review ./cmd/rex-review
-rexd install "$PWD" --link
+bin/rex-review install
 python3 scripts/smoke.py  # real floating UI + fake agent on a disposable server; needs cc
 rex config reload
 ```
 
-Changes to Go code require rebuilding the binary. Changes to `rex/config.lua` require `rex config reload`. Changes to the manifest require `rexd update aleksandre.rex-review`.
+Run `go run ./cmd/rex-review install` after changing Go or Lua code. Lua is embedded in the executable, so reinstalling updates both. The installed copy is independent of the source checkout.
 
 ## Remove
 
 ```sh
-rexd remove aleksandre.rex-review
+go run ./cmd/rex-review uninstall
 ```
 
-The linked source directory and saved drafts remain on disk.
+Alternatively, use `~/.config/rex/rex-review/rex-review uninstall` without Go or the source checkout. Pass the same `--config` and `--server` options if you used custom values when installing. Uninstall removes only the marked config block and installed Lua/binary files. Your other Rex settings, source checkout, config backup, and saved drafts remain on disk.
 
-This uses the floating-layer and rexd packaging approach demonstrated by [rexlauncher](https://github.com/tornikegomareli/rexlauncher). Its implementation is separate from Reviewr and does not invoke Herdr.
+The floating-pane approach was inspired by [rexlauncher](https://github.com/tornikegomareli/rexlauncher). Rex Review installs and runs independently.
