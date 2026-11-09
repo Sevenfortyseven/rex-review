@@ -1,0 +1,10 @@
+id = "aleksandre.rex-review"
+name = "Rex Review"
+version = "0.1.0"
+description = "Review Git changes in a floating pane and send line comments to the originating agent."
+homepage = "https://github.com/Sevenfortyseven/rex-review"
+rex_api = 11
+config = "rex/config.lua"
+
+[[build]]
+run = ["go", "build", "-o", "bin/rex-review", "./cmd/rex-review"]
